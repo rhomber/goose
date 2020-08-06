@@ -24,7 +24,7 @@ func SetVerbose(v bool) {
 func Run(command string, db *sql.DB, dir string, args ...string) error {
 	switch command {
 	case "up":
-		if err := Up(db, dir); err != nil {
+		if err := Up(db, dir, false); err != nil {
 			return err
 		}
 	case "up-by-one":
@@ -40,7 +40,7 @@ func Run(command string, db *sql.DB, dir string, args ...string) error {
 		if err != nil {
 			return fmt.Errorf("version must be a number (got '%s')", args[0])
 		}
-		if err := UpTo(db, dir, version); err != nil {
+		if err := UpTo(db, dir, version, false); err != nil {
 			return err
 		}
 	case "create":
