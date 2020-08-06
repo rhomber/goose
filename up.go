@@ -5,25 +5,42 @@ import (
 )
 
 // UpTo migrates up to a specific version.
-func UpTo(db *sql.DB, dir string, version int64) error {
+func UpTo(db *sql.DB, dir string, version int64, allowOutOfOrder bool) error {
 	migrations, err := CollectMigrations(dir, minVersion, version)
 	if err != nil {
 		return err
 	}
 
 	for {
-		current, err := GetDBVersion(db)
-		if err != nil {
-			return err
-		}
-
-		next, err := migrations.Next(current)
-		if err != nil {
-			if err == ErrNoNextVersion {
-				log.Printf("goose: no migrations to run. current version: %d\n", current)
-				return nil
+		var next *Migration
+		if !allowOutOfOrder {
+			var current, err = GetDBVersion(db)
+			if err != nil {
+				return err
 			}
-			return err
+
+			next, err = migrations.Next(current)
+			if err != nil {
+				if err == ErrNoNextVersion {
+					log.Printf("goose: no migrations to run. current version: %d\n", current)
+					return nil
+				}
+				return err
+			}
+		} else {
+			done, err := GetVersionMap(db)
+			if err != nil {
+				return err
+			}
+
+			next, err = migrations.NextNotDone(done)
+			if err != nil {
+				if err == ErrNoNextVersion {
+					log.Printf("goose: no migrations to run.\n")
+					return nil
+				}
+				return err
+			}
 		}
 
 		if err = next.Up(db); err != nil {
@@ -33,8 +50,8 @@ func UpTo(db *sql.DB, dir string, version int64) error {
 }
 
 // Up applies all available migrations.
-func Up(db *sql.DB, dir string) error {
-	return UpTo(db, dir, maxVersion)
+func Up(db *sql.DB, dir string, allowOutOfOrder bool) error {
+	return UpTo(db, dir, maxVersion, allowOutOfOrder)
 }
 
 // UpByOne migrates up by a single version.

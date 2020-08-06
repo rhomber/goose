@@ -58,6 +58,18 @@ func (ms Migrations) Next(current int64) (*Migration, error) {
 	return nil, ErrNoNextVersion
 }
 
+func (ms Migrations) NextNotDone(done map[int64]bool) (*Migration, error) {
+	for i, migration := range ms {
+		if v, ok := done[migration.Version]; v && ok {
+			continue
+		}
+
+		return ms[i], nil
+	}
+
+	return nil, ErrNoNextVersion
+}
+
 // Previous : Get the previous migration.
 func (ms Migrations) Previous(current int64) (*Migration, error) {
 	for i := len(ms) - 1; i >= 0; i-- {
@@ -316,4 +328,28 @@ func GetDBVersion(db *sql.DB) (int64, error) {
 	}
 
 	return version, nil
+}
+
+// Modification
+func GetVersionMap(db *sql.DB) (map[int64]bool, error) {
+	versionMap := make(map[int64]bool)
+
+	rows, err := GetDialect().dbVersionQuery(db)
+	if err != nil {
+		return versionMap, createVersionTable(db)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var row MigrationRecord
+		if err = rows.Scan(&row.VersionID, &row.IsApplied); err != nil {
+			return versionMap, errors.Wrap(err, "failed to scan row")
+		}
+
+		if row.IsApplied {
+			versionMap[row.VersionID] = true
+		}
+	}
+
+	return versionMap, nil
 }
